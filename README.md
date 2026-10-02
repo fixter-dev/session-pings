@@ -1,4 +1,4 @@
-# claude-pings
+# session-pings
 
 Mac notifications for Claude Code that tell you **which session** needs you and **what** it needs.
 
@@ -31,14 +31,14 @@ You need Claude Code 2.1.286 or newer (mods support) and access to this repo.
 **1. Add the plugin.** In a terminal:
 
 ```bash
-claude plugin marketplace add fixter-dev/claude-pings
+claude plugin marketplace add fixter-dev/session-pings
 ```
 
 ```bash
-claude plugin install claude-pings@claude-pings
+claude plugin install session-pings@session-pings
 ```
 
-**2. Make notifications clickable (recommended).** Without this, notifications still work, but clicking one does nothing useful. With it, a click brings you back to the app you were using (the Claude app or your terminal):
+**2. Make notifications clickable (recommended).** Without this, notifications still work, but clicking one does nothing useful. With it, a click opens that exact chat in the Claude app, or brings your terminal forward for terminal sessions:
 
 ```bash
 brew install terminal-notifier
@@ -59,12 +59,12 @@ In any session, ask Claude: *"Ask me a test question with AskUserQuestion."* A n
 
 ## Settings
 
-All optional. Change them in Claude Code's config menu under **claude-pings**, or in `~/.claude/settings.json`:
+All optional. Change them in Claude Code's config menu under **session-pings**, or in `~/.claude/settings.json`:
 
 ```json
 {
   "pluginConfigs": {
-    "claude-pings": {
+    "session-pings": {
       "options": {
         "remindAfterMinutes": 5,
         "aiSummaries": true,
@@ -87,16 +87,16 @@ Sound names: Basso, Blow, Bottle, Frog, Funk, Glass, Hero, Morse, Ping, Pop, Pur
 
 ## Troubleshooting
 
-- **No notifications at all.** Did you restart the session after installing? Check `claude plugin list` shows `claude-pings` enabled. Check macOS Focus / Do Not Disturb, and the app's notification permission in System Settings.
+- **No notifications at all.** Did you restart the session after installing? Check `claude plugin list` shows `session-pings` enabled. Check macOS Focus / Do Not Disturb, and the app's notification permission in System Settings.
 - **Notifications vanish after a few seconds.** That's macOS's Temporary/Banners style; set **Persistent** (step 4). Missed ones are in Notification Center (click the clock in the menu bar).
 - **Clicking opens Script Editor.** terminal-notifier isn't installed or isn't found; run step 2.
 - **Title is "Claude Code" or looks odd.** The session has no name in the app yet; the mod names it from your first message and keeps that name.
-- **Still stuck.** Start Claude Code with `claude --debug` and look for lines starting with `claude-pings:`; send them along with your feedback.
+- **Still stuck.** Start Claude Code with `claude --debug` and look for lines starting with `session-pings:`; send them along with your feedback.
 
 ## Uninstall
 
 ```bash
-claude plugin uninstall claude-pings@claude-pings
+claude plugin uninstall session-pings@session-pings
 ```
 
 ## Feedback
@@ -110,4 +110,4 @@ Open an issue in this repo:
 
 ## How it works
 
-claude-pings is a Claude Code mod: a plugin whose behaviour lives in one module, [`plugins/claude-pings/hooks/register.ts`](plugins/claude-pings/hooks/register.ts). It listens for a turn ending, `AskUserQuestion`, and permission requests, reads the session title, and shows the notification with `terminal-notifier` (falling back to macOS's built-in `osascript`, and `notify-send` on Linux).
+session-pings is a Claude Code mod: a plugin whose behaviour lives in one module, [`plugins/session-pings/hooks/register.ts`](plugins/session-pings/hooks/register.ts). It listens for a turn ending, `AskUserQuestion`, and permission requests, reads the session title, and shows the notification with `terminal-notifier` (falling back to macOS's built-in `osascript`, and `notify-send` on Linux).

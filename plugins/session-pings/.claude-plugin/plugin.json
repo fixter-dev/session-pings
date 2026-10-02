@@ -1,11 +1,11 @@
 {
-  "name": "claude-pings",
-  "version": "0.1.2",
+  "name": "session-pings",
+  "version": "0.2.0",
   "description": "Mac notifications titled with the session name, saying what Claude needs from you: done, a question, or a permission. Works out of the box; install terminal-notifier (brew install terminal-notifier) to make notifications clickable, which brings you back to the app you were using.",
   "author": {
     "name": "Fixter"
   },
-  "repository": "https://github.com/fixter-dev/claude-pings",
+  "repository": "https://github.com/fixter-dev/session-pings",
   "keywords": [
     "notifications",
     "macos",

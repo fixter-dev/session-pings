@@ -1,6 +1,6 @@
 import type { EngineInterface, Register } from 'claude-code'
 
-// claude-pings: a Mac notification whenever Claude needs you, titled with the
+// session-pings: a Mac notification whenever Claude needs you, titled with the
 // session's title (the same name the app lists it under) and saying what it
 // needs, in the app's own words ("Done: ...", "Needs input: ..."). It only observes:
 // every hook calls next(e).
@@ -19,7 +19,7 @@ const NOTIFIER_PATHS = ['/opt/homebrew/bin/terminal-notifier', '/usr/local/bin/t
 
 // Module state: a hot reload starts it over, which only loses an unsent reminder.
 const cfg = { remindMs: 5 * 60_000, useAi: true, doneSound: 'Glass', attentionSound: 'Ping' }
-const group = `claude-pings-${crypto.randomUUID()}`
+const group = `session-pings-${crypto.randomUUID()}`
 // The session's title as the app shows it; until the app has one, a name the
 // mod writes once from the first request and keeps.
 let appTitle: string | undefined
@@ -30,6 +30,7 @@ let nextId = 0
 let notifier: Promise<string | undefined> | undefined
 let appId: Promise<string | undefined> | undefined
 let project: Promise<string> | undefined
+let chatLink: Promise<string | undefined> | undefined
 
 function oneLine(s: string, max: number) {
   const t = s.replace(/\s+/g, ' ').trim()
@@ -111,10 +112,19 @@ async function locateProject($: EngineInterface) {
   return (repo || root).split('/').filter(Boolean).pop() ?? ''
 }
 
+// A desktop app session can be opened by link; terminals have no such link, so
+// a click there brings the terminal forward instead.
+async function locateChatLink($: EngineInterface) {
+  const id = await $.env.get('CLAUDE_CODE_HOST_SESSION_ID')
+  return id && /^local_[A-Za-z0-9-]{1,64}$/.test(id)
+    ? `claude://code/continue?session=${id}&source=url_external`
+    : undefined
+}
+
 async function hintOnce($: EngineInterface) {
   if (await $.store.get('notifierHintShown')) return
   await $.store.set('notifierHintShown', true)
-  $.ui.toast('claude-pings: run `brew install terminal-notifier` to make notifications clickable', {
+  $.ui.toast('session-pings: run `brew install terminal-notifier` to make notifications clickable', {
     timeoutMs: 12_000,
   })
 }
@@ -126,9 +136,10 @@ async function notify($: EngineInterface, title: string, body: string, sound: st
   const heading = name ? `${title} · ${name}` : title
   if (tn) {
     appId ??= locateApp($)
-    const app = await appId
+    chatLink ??= locateChatLink($)
+    const [app, link] = await Promise.all([appId, chatLink])
     const argv = [tn, '-title', heading, '-message', body, '-sound', sound, '-group', group]
-    const r = await $.process.run(app ? [...argv, '-activate', app] : argv).catch(() => undefined)
+    const r = await $.process.run(link ? [...argv, '-open', link] : app ? [...argv, '-activate', app] : argv).catch(() => undefined)
     if (r?.exitCode === 0) return
   }
   const script = [
