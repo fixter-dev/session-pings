@@ -1,0 +1,16 @@
+{
+  "name": "claude-pings",
+  "owner": {
+    "name": "Fixter"
+  },
+  "metadata": {
+    "description": "claude-pings: Mac notifications when Claude Code needs you."
+  },
+  "plugins": [
+    {
+      "name": "claude-pings",
+      "source": "./plugins/claude-pings",
+      "description": "Mac notifications titled with the session name, saying what Claude needs from you: done, a question, or a permission."
+    }
+  ]
+}
