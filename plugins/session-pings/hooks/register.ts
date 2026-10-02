@@ -25,6 +25,7 @@ const group = `session-pings-${crypto.randomUUID()}`
 let appTitle: string | undefined
 let ownTitle: Promise<string> | undefined
 let lastPrompt = ''
+let transcriptPath: string | undefined
 let pending: Pending | undefined
 let nextId = 0
 let notifier: Promise<string | undefined> | undefined
@@ -51,22 +52,46 @@ async function ask($: EngineInterface, prompt: string, maxTokens: number) {
   }
 }
 
+// What the person typed: the app prepends notes of its own in tags
+// (<system-reminder>, a command's record), which are no part of the request.
+function typedText(text: string) {
+  return text
+    .replace(/<([a-z][\w-]*)>[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 async function nameSession($: EngineInterface, text: string) {
   const name = await ask(
     $,
-    `Write a title for a work session that starts with this request: 3 to 6 words, sentence case, ` +
-      `no punctuation, no quotes. Reply with the title only.\n\nRequest:\n${text.slice(0, 3000)}`,
+    `Give a short title, 3 to 6 words in sentence case, for a work session that starts with the ` +
+      `request inside <request>. Reply with the title only.\n\n<request>\n${text.slice(0, 3000)}\n</request>`,
     24,
   )
-  return name ?? (firstWords(text, 5) || 'Claude Code')
+  const words = name?.split(' ').length ?? 0
+  return name && words <= 8 && !/\btitle\b/i.test(name) ? name : firstWords(text, 5) || 'Claude Code'
 }
 
-async function sessionTitle() {
+// The app keeps the session's title in its transcript and changes it as the
+// session goes on, so the latest one is read there each time.
+async function readAppTitle($: EngineInterface) {
+  if (!transcriptPath) return undefined
+  const r = await $.process
+    .run(['/bin/sh', '-c', `grep -o '"customTitle":"[^"]*"' "$1" | tail -1`, 'sh', transcriptPath])
+    .catch(() => undefined)
+  const m = r?.stdout.match(/"customTitle":"([^"]*)"/)
+  return m?.[1] ? oneLine(m[1], 80) : undefined
+}
+
+async function sessionTitle($: EngineInterface) {
+  const latest = await readAppTitle($)
+  if (latest) appTitle = latest
   return appTitle ?? (await ownTitle) ?? 'Claude Code'
 }
 
-function noteTitle(title: string | undefined) {
-  if (title?.trim()) appTitle = oneLine(title, 80)
+function noteSession(e: { session_title?: string; transcript_path?: string }) {
+  if (e.session_title?.trim()) appTitle = oneLine(e.session_title, 80)
+  if (e.transcript_path) transcriptPath = e.transcript_path
 }
 
 async function summarize($: EngineInterface, reason: string, answer: string) {
@@ -161,7 +186,7 @@ function clearPending() {
 
 async function waitOnUser($: EngineInterface, tool: string, body: string) {
   clearPending()
-  const p: Pending = { id: ++nextId, tool, title: await sessionTitle(), body }
+  const p: Pending = { id: ++nextId, tool, title: await sessionTitle($), body }
   pending = p
   await notify($, p.title, p.body, cfg.attentionSound)
   if (cfg.remindMs > 0 && pending?.id === p.id) p.timer = $.clock.after(cfg.remindMs, () => remind($, p.id))
@@ -173,7 +198,7 @@ function remind($: EngineInterface, id: number) {
 }
 
 async function notifyDone($: EngineInterface, reason: string, answer: string) {
-  const title = await sessionTitle()
+  const title = await sessionTitle($)
   const body = await summarize($, reason, answer)
   await notify($, title, body, /^Needs input/.test(body) ? cfg.attentionSound : cfg.doneSound)
 }
@@ -198,20 +223,21 @@ export const register: Register = (on, options) => {
 
   on('turn.start', async ($, e, next) => {
     clearPending()
-    if (e.text.trim()) {
-      lastPrompt = e.text
-      if (!appTitle && !ownTitle) ownTitle = nameSession($, e.text)
+    const typed = typedText(e.text)
+    if (typed) {
+      lastPrompt = typed
+      if (!appTitle && !ownTitle) ownTitle = nameSession($, typed)
     }
     return next(e)
   })
 
   on('classic.SessionStart', async ($, e, next) => {
-    noteTitle(e.session_title)
+    noteSession(e)
     return next(e)
   })
 
   on('classic.UserPromptSubmit', async ($, e, next) => {
-    noteTitle(e.session_title)
+    noteSession(e)
     return next(e)
   })
 
