@@ -29,6 +29,7 @@ let pending: Pending | undefined
 let nextId = 0
 let notifier: Promise<string | undefined> | undefined
 let appId: Promise<string | undefined> | undefined
+let project: Promise<string> | undefined
 
 function oneLine(s: string, max: number) {
   const t = s.replace(/\s+/g, ' ').trim()
@@ -96,6 +97,17 @@ async function locateApp($: EngineInterface) {
   return term ? TERMINAL_APPS[term] : undefined
 }
 
+// The project's name, shown small under the title. A worktree is named after
+// the repository it belongs to, not after the worktree's own folder.
+async function locateProject($: EngineInterface) {
+  const root = await $.session.root().catch(() => '')
+  const git = await $.process
+    .run(['git', '-C', root || '.', 'rev-parse', '--path-format=absolute', '--git-common-dir'])
+    .catch(() => undefined)
+  const repo = git?.exitCode === 0 ? git.stdout.trim().replace(/\/\.git\/?$/, '') : ''
+  return (repo || root).split('/').filter(Boolean).pop() ?? ''
+}
+
 async function hintOnce($: EngineInterface) {
   if (await $.store.get('notifierHintShown')) return
   await $.store.set('notifierHintShown', true)
@@ -106,23 +118,24 @@ async function hintOnce($: EngineInterface) {
 
 async function notify($: EngineInterface, title: string, body: string, sound: string) {
   notifier ??= locateNotifier($)
-  const tn = await notifier
+  project ??= locateProject($)
+  const [tn, subtitle] = await Promise.all([notifier, project])
   if (tn) {
     appId ??= locateApp($)
     const app = await appId
-    const argv = [tn, '-title', title, '-message', body, '-sound', sound, '-group', group]
+    const argv = [tn, '-title', title, '-subtitle', subtitle, '-message', body, '-sound', sound, '-group', group]
     const r = await $.process.run(app ? [...argv, '-activate', app] : argv).catch(() => undefined)
     if (r?.exitCode === 0) return
   }
   const script = [
     'on run argv',
-    'display notification (item 2 of argv) with title (item 1 of argv) sound name (item 3 of argv)',
+    'display notification (item 2 of argv) with title (item 1 of argv) subtitle (item 4 of argv) sound name (item 3 of argv)',
     'end run',
   ]
   const r = await $.process
-    .run(['osascript', ...script.flatMap(l => ['-e', l]), title, body, sound])
+    .run(['osascript', ...script.flatMap(l => ['-e', l]), title, body, sound, subtitle])
     .catch(() => undefined)
-  if (r?.exitCode !== 0) await $.process.run(['notify-send', title, body]).catch(() => undefined)
+  if (r?.exitCode !== 0) await $.process.run(['notify-send', title, subtitle ? `${subtitle} · ${body}` : body]).catch(() => undefined)
   if (!tn) await hintOnce($)
 }
 

@@ -3,9 +3,10 @@
 Mac notifications for Claude Code that tell you **which session** needs you and **what** it needs.
 
 > **User activity and integration status**
+> fixter-observability
 > Needs OK: run npm install stripe
 
-Instead of "landing page finished", you get the session's name (the same one the Claude app lists it under) and one line saying what happened:
+Instead of "landing page finished", you get the session's name (the same one the Claude app lists it under), the project in small text beneath it, and one line saying what happened:
 
 | When | The line says |
 |---|---|
