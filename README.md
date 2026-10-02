@@ -101,7 +101,7 @@ claude plugin uninstall claude-pings@claude-pings
 
 ## Feedback
 
-Tell Kristina (or open an issue in this repo):
+Open an issue in this repo:
 
 - Did the notifications arrive when you expected? Any you missed, or ones you didn't want?
 - Is the session name enough to know which work it's about?
