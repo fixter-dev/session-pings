@@ -1,6 +1,6 @@
-# session-pings
+# session-pings: Claude Code notifications that say what Claude needs
 
-Mac notifications for Claude Code that tell you **which session** needs you and **what** it needs.
+A Claude Code mod that sends Mac notifications telling you **which session** needs you and **what** it needs: done, a question, or a permission to approve. Built for running several Claude Code sessions at once.
 
 > **User activity and integration status · fixter-observability**
 > Needs input: approve npm install stripe
@@ -22,11 +22,13 @@ It stays quiet for turns you stopped yourself and for background helper agents. 
 
 Works in the Claude desktop app (Code tab) and in the terminal.
 
-> **Status: team test (v0.1).** Please try it for a few days and send feedback (see the end).
+> **Status: v0.1.** Feedback welcome (see the end).
+
+Why a mod instead of a `Stop` or `Notification` hook? A hook starts fresh every time; a mod stays running for the whole session, so it can pair your request with Claude's answer, tell "done" from "waiting on you", and cancel its reminder the moment you answer. The long version: [Claude Code notifications: why a mod beats a hook](https://fixter.dev/blog/claude-code-notifications-mod). New to mods? [Claude Code mods, explained simply](https://fixter.dev/blog/claude-code-mods-explained).
 
 ## Install
 
-You need Claude Code 2.1.286 or newer (mods support) and access to this repo.
+You need Claude Code 2.1.287 or newer, the version where mods are on by default. Check with `claude --version`.
 
 **1. Add the plugin.** In a terminal:
 
@@ -111,3 +113,7 @@ Open an issue in this repo:
 ## How it works
 
 session-pings is a Claude Code mod: a plugin whose behaviour lives in one module, [`plugins/session-pings/hooks/register.ts`](plugins/session-pings/hooks/register.ts). It listens for a turn ending, `AskUserQuestion`, and permission requests, reads the session title, and shows the notification with `terminal-notifier` (falling back to macOS's built-in `osascript`, and `notify-send` on Linux).
+
+---
+
+Made by [Fixter](https://fixter.dev), monitoring for teams that build with coding agents.
