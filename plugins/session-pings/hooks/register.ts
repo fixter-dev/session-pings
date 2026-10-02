@@ -56,7 +56,7 @@ async function ask($: EngineInterface, prompt: string, maxTokens: number) {
 // (<system-reminder>, a command's record), which are no part of the request.
 function typedText(text: string) {
   return text
-    .replace(/<([a-z][\w-]*)>[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<([a-z]+-[\w-]+)>[\s\S]*?<\/\1>/gi, ' ')
     .replace(/\s+/g, ' ')
     .trim()
 }
