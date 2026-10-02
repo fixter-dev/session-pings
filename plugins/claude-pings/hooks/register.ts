@@ -2,7 +2,7 @@ import type { EngineInterface, Register } from 'claude-code'
 
 // claude-pings: a Mac notification whenever Claude needs you, titled with the
 // session's title (the same name the app lists it under) and saying what it
-// needs ("Done: ...", "Question: ...", "Needs OK: ..."). It only observes:
+// needs, in the app's own words ("Done: ...", "Needs input: ..."). It only observes:
 // every hook calls next(e).
 
 type Pending = { id: number; tool: string; title: string; body: string; timer?: { cancel: () => void } }
@@ -69,17 +69,18 @@ function noteTitle(title: string | undefined) {
 }
 
 async function summarize($: EngineInterface, reason: string, answer: string) {
-  if (reason === 'error') return 'Stopped: an API error ended the turn'
-  if (reason === 'refusal') return 'Stopped: Claude declined this one'
+  if (reason === 'error') return 'Stopped: API error'
+  if (reason === 'refusal') return 'Stopped: declined'
   const line = await ask(
     $,
-    `Below is a request and the assistant's final reply. In one line of at most 12 words, ` +
-      `say what the user should know now. Start with "Done: " if the work is finished, or ` +
-      `"Needs you: " if the reply asks the user something or waits on them. Reply with the line only.` +
+    `Below is a request and the assistant's final reply. Write a status line: "Done: " if the work ` +
+      `is finished, or "Needs input: " if the reply asks the user something or waits on them, then at ` +
+      `most 6 words, like a commit message. Reply with the line only.` +
       `\n\nRequest:\n${lastPrompt.slice(0, 1500)}\n\nReply:\n${answer.slice(-4000)}`,
     60,
   )
-  return line ?? `Done: ${oneLine(answer.split(/(?<=[.!?])\s/)[0] || 'finished', 140)}`
+  if (line) return oneLine(line, 70)
+  return `Done: ${oneLine(answer.split(/(?<=[.!?])\s/)[0] || 'finished', 60)}`
 }
 
 async function locateNotifier($: EngineInterface) {
@@ -97,12 +98,14 @@ async function locateApp($: EngineInterface) {
   return term ? TERMINAL_APPS[term] : undefined
 }
 
-// The project's name, shown small under the title. A worktree is named after
+// The project's name, after the session title. A worktree is named after
 // the repository it belongs to, not after the worktree's own folder.
 async function locateProject($: EngineInterface) {
   const root = await $.session.root().catch(() => '')
+  // A desktop session with no folder runs in a scratch folder the app made: no project to name.
+  if (!root || root.includes('/scratch-workspaces/')) return ''
   const git = await $.process
-    .run(['git', '-C', root || '.', 'rev-parse', '--path-format=absolute', '--git-common-dir'])
+    .run(['git', '-C', root, 'rev-parse', '--path-format=absolute', '--git-common-dir'])
     .catch(() => undefined)
   const repo = git?.exitCode === 0 ? git.stdout.trim().replace(/\/\.git\/?$/, '') : ''
   return (repo || root).split('/').filter(Boolean).pop() ?? ''
@@ -119,23 +122,24 @@ async function hintOnce($: EngineInterface) {
 async function notify($: EngineInterface, title: string, body: string, sound: string) {
   notifier ??= locateNotifier($)
   project ??= locateProject($)
-  const [tn, subtitle] = await Promise.all([notifier, project])
+  const [tn, name] = await Promise.all([notifier, project])
+  const heading = name ? `${title} · ${name}` : title
   if (tn) {
     appId ??= locateApp($)
     const app = await appId
-    const argv = [tn, '-title', title, '-subtitle', subtitle, '-message', body, '-sound', sound, '-group', group]
+    const argv = [tn, '-title', heading, '-message', body, '-sound', sound, '-group', group]
     const r = await $.process.run(app ? [...argv, '-activate', app] : argv).catch(() => undefined)
     if (r?.exitCode === 0) return
   }
   const script = [
     'on run argv',
-    'display notification (item 2 of argv) with title (item 1 of argv) subtitle (item 4 of argv) sound name (item 3 of argv)',
+    'display notification (item 2 of argv) with title (item 1 of argv) sound name (item 3 of argv)',
     'end run',
   ]
   const r = await $.process
-    .run(['osascript', ...script.flatMap(l => ['-e', l]), title, body, sound, subtitle])
+    .run(['osascript', ...script.flatMap(l => ['-e', l]), heading, body, sound])
     .catch(() => undefined)
-  if (r?.exitCode !== 0) await $.process.run(['notify-send', title, subtitle ? `${subtitle} · ${body}` : body]).catch(() => undefined)
+  if (r?.exitCode !== 0) await $.process.run(['notify-send', heading, body]).catch(() => undefined)
   if (!tn) await hintOnce($)
 }
 
@@ -154,20 +158,20 @@ async function waitOnUser($: EngineInterface, tool: string, body: string) {
 
 function remind($: EngineInterface, id: number) {
   if (pending?.id !== id) return
-  void notify($, pending.title, `Still waiting · ${pending.body}`, cfg.attentionSound).catch(() => {})
+  void notify($, pending.title, pending.body.replace(/^Needs input/, 'Still needs input'), cfg.attentionSound).catch(() => {})
 }
 
 async function notifyDone($: EngineInterface, reason: string, answer: string) {
   const title = await sessionTitle()
   const body = await summarize($, reason, answer)
-  await notify($, title, body, /^Needs you/.test(body) ? cfg.attentionSound : cfg.doneSound)
+  await notify($, title, body, /^Needs input/.test(body) ? cfg.attentionSound : cfg.doneSound)
 }
 
 function describePermission(tool: string, input: unknown) {
   const i = (input ?? {}) as Record<string, unknown>
   const str = (k: string) => (typeof i[k] === 'string' ? (i[k] as string) : '')
   const base = (p: string) => p.split('/').pop() || p
-  if (tool === 'Bash') return `run ${str('command')}`
+  if (tool === 'Bash') return str('command')
   if (tool === 'Edit' || tool === 'Write' || tool === 'NotebookEdit')
     return `edit ${base(str('file_path') || str('notebook_path'))}`
   if (tool === 'WebFetch') return `open ${str('url').replace(/^https?:\/\//, '')}`
@@ -204,7 +208,7 @@ export const register: Register = (on, options) => {
   on('tool.call', async ($, e, next) => {
     if (e.tool === 'AskUserQuestion' && !e.agentId) {
       const q = (e.questions?.[0] ?? {}) as { question?: string }
-      const body = `Question: ${oneLine(q.question ?? 'Claude has a question', 160)}`
+      const body = `Needs input: ${oneLine(q.question ?? 'a question', 60)}`
       void waitOnUser($, e.tool, body).catch(() => {})
     }
     const result = await next(e)
@@ -213,7 +217,7 @@ export const register: Register = (on, options) => {
   })
 
   on('classic.PermissionRequest', async ($, e, next) => {
-    const body = `Needs OK: ${oneLine(describePermission(e.tool_name, e.tool_input), 160)}`
+    const body = `Needs input: approve ${oneLine(describePermission(e.tool_name, e.tool_input), 50)}`
     void waitOnUser($, e.tool_name, body).catch(() => {})
     return next(e)
   })

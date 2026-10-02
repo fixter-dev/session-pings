@@ -2,19 +2,21 @@
 
 Mac notifications for Claude Code that tell you **which session** needs you and **what** it needs.
 
-> **User activity and integration status**
-> fixter-observability
-> Needs OK: run npm install stripe
+> **User activity and integration status · fixter-observability**
+> Needs input: approve npm install stripe
 
-Instead of "landing page finished", you get the session's name (the same one the Claude app lists it under), the project in small text beneath it, and one line saying what happened:
+Instead of "landing page finished", the title is the session's name (the same one the Claude app lists it under) and the project, and the message is a short status in the app's own words:
 
-| When | The line says |
+| When | The message says |
 |---|---|
-| Claude finished | `Done: pricing table now stacks on mobile` (a one-line AI summary) |
-| Claude finished but is waiting on you | `Needs you: pick a plan for the webhook retries` |
-| Claude asks a question | `Question: Postgres or SQLite?` |
-| Claude needs permission | `Needs OK: run npm install stripe` |
-| Still unanswered after 5 minutes | `Still waiting · …` (once) |
+| Claude finished | `Done: pricing table stacks on mobile` (AI summary, at most 6 words) |
+| Claude finished but is waiting on you | `Needs input: pick webhook retry plan` |
+| Claude asks a question | `Needs input: Postgres or SQLite?` |
+| Claude needs permission | `Needs input: approve npm install stripe` |
+| Still unanswered after 5 minutes | `Still needs input: …` (once) |
+| The turn failed | `Stopped: API error` |
+
+Sessions without a project folder show only the session's name. Each session keeps one notification at a time: a newer one replaces its older one.
 
 It stays quiet for turns you stopped yourself and for background helper agents. It only watches: it never blocks, changes or answers anything in your session.
 
@@ -47,13 +49,13 @@ brew install terminal-notifier
 - **Desktop app:** quit it fully (Cmd+Q) and reopen. All sessions come back with their history and load the mod. Wait until none is mid-task, since quitting interrupts a running turn.
 - **Terminal:** exit and resume with `claude --continue` (latest session) or `claude --resume` (pick one).
 
-**4. Allow notifications.** The first notification may make macOS ask whether to allow notifications from terminal-notifier (or Script Editor, without step 2). Allow it, and in System Settings → Notifications set the style to **Banners** or **Alerts**.
+**4. Allow notifications.** The first notification may make macOS ask whether to allow notifications from terminal-notifier (or Script Editor, without step 2). Allow it. Then in System Settings → Notifications → **terminal-notifier**, set the alert style to **Persistent** (called **Alerts** on older macOS), so notifications stay until you dismiss them instead of vanishing after ~5 seconds.
 
 **5. Turn off old notification hooks.** If you already had `Stop` / `Notification` hooks in `~/.claude/settings.json` that show notifications, remove them, or you'll get two of everything.
 
 ## Check it works
 
-In any session, ask Claude: *"Ask me a test question with AskUserQuestion."* A notification titled with the session's name should say `Question: …`. When you answer and the turn ends, a `Done: …` notification follows a second or two later.
+In any session, ask Claude: *"Ask me a test question with AskUserQuestion."* A notification titled with the session's name should say `Needs input: …`. When you answer and the turn ends, a `Done: …` notification follows a second or two later.
 
 ## Settings
 
@@ -86,6 +88,7 @@ Sound names: Basso, Blow, Bottle, Frog, Funk, Glass, Hero, Morse, Ping, Pop, Pur
 ## Troubleshooting
 
 - **No notifications at all.** Did you restart the session after installing? Check `claude plugin list` shows `claude-pings` enabled. Check macOS Focus / Do Not Disturb, and the app's notification permission in System Settings.
+- **Notifications vanish after a few seconds.** That's macOS's Temporary/Banners style; set **Persistent** (step 4). Missed ones are in Notification Center (click the clock in the menu bar).
 - **Clicking opens Script Editor.** terminal-notifier isn't installed or isn't found; run step 2.
 - **Title is "Claude Code" or looks odd.** The session has no name in the app yet; the mod names it from your first message and keeps that name.
 - **Still stuck.** Start Claude Code with `claude --debug` and look for lines starting with `claude-pings:`; send them along with your feedback.
